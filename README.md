@@ -18,8 +18,10 @@
 3. [設定環境變數](#3-設定環境變數)
 4. [執行 StaMPS](#4-執行-stamps)
 5. [畫圖（ps_plot.py）](#5-畫圖ps_plotpy)
-6. [Octave 相容性修改說明](#6-octave-相容性修改說明)
-7. [目錄結構](#7-目錄結構)
+6. [匯出 PS 點資料（export_ps）](#6-匯出-ps-點資料export_ps)
+7. [ps_plot.py 完整用法參考](#7-ps_plotpy-完整用法參考)
+8. [Octave 相容性修改說明](#8-octave-相容性修改說明)
+9. [目錄結構](#9-目錄結構)
 
 ---
 
@@ -393,7 +395,204 @@ p.plot('w', n_x=5, textsize=8)
 
 ---
 
-## 6. Octave 相容性修改說明
+## 6. 匯出 PS 點資料（export_ps）
+
+`export_ps()` 將每個 PS 點的座標與數值輸出為 **CSV** 或 **TXT**，供 GMT、GIS 軟體或後續分析使用。
+
+> **限制**：僅支援 1-D scalar 類型（velocity、hgt、d 等），不支援 phase 類型（w、u 等）。
+
+### 6-1. 命令列匯出
+
+```bash
+cd /path/to/PATCH_1
+
+# CSV（逗號分隔，含 header）← 預設
+python $STAMPS/python/ps_plot.py v-d --export ps_velocity.csv
+
+# TXT（空格分隔，GMT 可直接 pipe）
+python $STAMPS/python/ps_plot.py v-d --export ps_velocity.txt --fmt txt
+
+# 不含 header（方便 GMT/awk 直接處理）
+python $STAMPS/python/ps_plot.py v-d --export ps_velocity.txt --fmt txt --no-header
+
+# 只匯出特定地理範圍
+python $STAMPS/python/ps_plot.py v-d --export crop.csv \
+    --lon-rg 120.8 121.2 --lat-rg 23.9 24.3
+
+# 同時畫圖並匯出（兩者獨立執行）
+python $STAMPS/python/ps_plot.py v-d --save velocity.png --export ps_velocity.csv
+
+# 其他可匯出的類型
+python $STAMPS/python/ps_plot.py hgt --export ps_height.csv
+python $STAMPS/python/ps_plot.py d   --export ps_dem_error.csv
+python $STAMPS/python/ps_plot.py vs  --export ps_vel_std.csv
+```
+
+### 6-2. 輸出格式
+
+**CSV（預設）：**
+```
+lon,lat,v_d_mmPyr
+121.043210,24.123456,-3.2150
+121.044567,24.124789,1.8820
+...
+```
+
+**TXT（空格）：**
+```
+lon lat v_d_mmPyr
+121.043210 24.123456 -3.2150
+121.044567 24.124789  1.8820
+...
+```
+
+欄位名稱規則：`<value_type>_<unit>`，例如：
+| value_type | 欄位名稱 |
+|---|---|
+| `v-d` | `v_d_mmPyr` |
+| `hgt` | `hgt_m` |
+| `d` | `d_radPm` |
+| `vs` | `vs_mmPyr_std_dev_` |
+
+### 6-3. Python API 匯出
+
+```python
+from ps_plot import PSPlot, export_ps_csv
+
+p = PSPlot(work_dir='/path/to/PATCH_1')
+
+# CSV
+n = p.export_ps('v-d', 'ps_velocity.csv')
+print(f'{n} PS points exported')
+
+# TXT，不含 header
+p.export_ps('v-d', 'ps_velocity.txt', fmt='txt', no_header=True)
+
+# 空間裁切
+p.export_ps('v-d', 'crop.csv', lon_rg=[120.8, 121.2], lat_rg=[23.9, 24.3])
+
+# 模組函數（不需實例化）
+export_ps_csv(work_dir='.', value_type='v-d', out_path='ps_v.csv')
+```
+
+### 6-4. GMT 使用範例
+
+```bash
+# 匯出無 header 的 TXT，直接 pipe 給 GMT
+python $STAMPS/python/ps_plot.py v-d \
+    --export /dev/stdout --fmt txt --no-header | \
+    gmt psxy -R120/122/23/25 -JM15c -Sc0.05c -Cvel.cpt -Ba > vel.ps
+```
+
+---
+
+## 7. ps_plot.py 完整用法參考
+
+`python/ps_plot.py` 的 docstring 完整對應原始 `ps_plot.m` 的標頭說明，包含以下章節：
+
+### 7-1. 支援的 value_type 完整列表
+
+**速度類（1-D，輸出單位 mm/yr）**
+
+| 類型 | 說明 |
+|------|------|
+| `v` | 平均 LOS 速度 |
+| `V` | SB 反演的 SM 速度 |
+| `vs` | 速度標準差 |
+| `v-d` | 速度（去 DEM 誤差）← **最常用** |
+| `v-o` | 速度（去軌道斜坡）|
+| `v-do` | 速度（去 DEM 誤差 + 軌道）|
+| `v-a` | 速度（去 APS 大氣）|
+| `v-da` | 速度（去 DEM 誤差 + APS）|
+| `v-dao` | 速度（去 DEM 誤差 + APS + 軌道）|
+| `V-D` | SB 反演速度（去 DEM 誤差）|
+| `V-DO` | SB 反演速度（去 DEM 誤差 + 軌道）|
+
+**相位類（2-D，每張干涉圖一個子圖，單位 rad）**
+
+| 類型 | 說明 |
+|------|------|
+| `w` | 包裹相位（干涉圖）|
+| `p` | 空間濾波後的包裹相位 |
+| `w-d` | 包裹相位（去 DEM 誤差）|
+| `w-o` | 包裹相位（去軌道）|
+| `w-do` | 包裹相位（去 DEM + 軌道）|
+| `u` | 展開相位 |
+| `u-d` | 展開相位（去 DEM）|
+| `u-o` | 展開相位（去軌道）|
+| `u-do` | 展開相位（去 DEM + 軌道）|
+| `u-dm` | 展開相位（去 DEM + master AOE）|
+| `usb` | SB 展開相位 |
+| `usb-d` | SB 展開相位（去 DEM）|
+| `usb-do` | SB 展開相位（去 DEM + 軌道）|
+
+**其他類（1-D）**
+
+| 類型 | 說明 | 單位 |
+|------|------|------|
+| `hgt` | 地形高程（DEM）| m |
+| `d` | DEM 誤差 / 外觀誤差 | rad/m |
+| `D` | SB 反演的 SM DEM 誤差 | rad/m |
+| `dsb` | SB 模式的 DEM 誤差 | rad/m |
+
+### 7-2. 與原始 MATLAB 函數對照
+
+```
+MATLAB:  ps_plot(value_type, plot_flag, lims, ref_ifg, ifg_list,
+                 n_x, cbar_flag, textsize, textcolor, lon_rg, lat_rg, units)
+
+Python:  p.plot(value_type, bg=plot_flag, lims=lims, ref_ifg=ref_ifg,
+               ifg_list=ifg_list, n_x=n_x, cbar_flag=cbar_flag,
+               textsize=textsize, lon_rg=lon_rg, lat_rg=lat_rg, units=units)
+```
+
+### 7-3. CLI 參數完整說明
+
+| 參數 | 類型 | 預設 | 說明 |
+|------|------|------|------|
+| `value_type` | str | `v` | 資料類型（見上表）|
+| `--bg` | int | `1` | 背景：0=黑，1=白 |
+| `--lims MIN MAX` | float | auto | 色帶範圍（mm/yr 或 rad）|
+| `--ref-ifg` | int | `0` | 參考干涉圖：0=master，-1=遞增 |
+| `--ifg-list` | int... | all | 1-based 干涉圖索引 |
+| `--n-x` | int | `0` | 子圖欄數（0=自動）|
+| `--no-cbar` | flag | off | 隱藏 colorbar |
+| `--textsize` | int | `10` | 日期標籤字體大小 |
+| `--lon-rg` | float float | — | 經度範圍 |
+| `--lat-rg` | float float | — | 緯度範圍 |
+| `--ts` | flag | off | 互動時間序列模式 |
+| `--save` | str | — | 存圖路徑（PNG/PDF）|
+| `--export` | str | — | 匯出 CSV/TXT 路徑 |
+| `--fmt` | str | `csv` | 匯出格式：`csv` 或 `txt` |
+| `--no-header` | flag | off | 匯出時不含 header |
+| `--work-dir` | str | `.` | .mat 資料所在目錄 |
+| `--stamps-dir` | str | `$STAMPS` | StaMPS 安裝根目錄 |
+
+### 7-4. 測試覆蓋（10 個測試，全通過）
+
+```
+tests/test_ps_plot.py
+├── test_import                   ← PSPlot / load_mat / load_cpt 可正常匯入
+├── test_load_cpt                 ← GMT .cpt 色帶解析正確
+├── test_psplot_init              ← work_dir 路徑正確設定
+├── test_getparm_default          ← parms.mat 不存在時回傳預設值
+├── test_load_mat_v5              ← scipy.io 讀取 v5 .mat 格式
+├── test_invalid_value_type       ← 不合法 value_type 拋出 ValueError
+├── test_export_ps_csv            ← CSV 行數、header、欄位數正確
+├── test_export_ps_txt            ← TXT 空格分隔、無逗號
+├── test_export_ps_spatial_filter ← lon/lat 過濾確實減少輸出點數
+└── test_export_ps_rejects_phase  ← w/u 類型正確拋出 ValueError
+```
+
+執行測試：
+```bash
+cd ~/tools/StaMPS_octave_python
+python -m pytest tests/ -v
+```
+
+---
+
+## 8. Octave 相容性修改說明
 
 | 檔案 | 問題 | 修改方式 |
 |------|------|----------|
@@ -409,7 +608,7 @@ p.plot('w', n_x=5, textsize=8)
 
 ---
 
-## 7. 目錄結構
+## 9. 目錄結構
 
 ```
 StaMPS_octave_python/
@@ -428,7 +627,7 @@ StaMPS_octave_python/
 ├── bin/                     # Shell 腳本（matlab→octave 全數替換）
 ├── src/                     # C/C++ 原始碼（calamp、pscdem 等）
 ├── tests/
-│   └── test_ps_plot.py      # pytest 測試（6 個）
+│   └── test_ps_plot.py      # pytest 測試（10 個，全通過）
 ├── docs/
 │   └── octave_compat.md     # Octave 相容性技術細節
 ├── StaMPS_CONFIG.bash        # 環境變數設定檔
