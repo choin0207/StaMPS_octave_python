@@ -1,0 +1,45 @@
+# StaMPS 處理過程中產生的資料檔案（不追蹤）
+*.mat
+*.log
+*.in
+*.out
+patch.in
+patch_noover.in
+psver
+parms.mat
+PATCH_*/
+*.bak
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+*.egg
+
+# 編譯產物
+src/*.o
+src/*.a
+bin/calamp
+bin/cpxsum
+bin/pscdem
+bin/psclonlat
+bin/pscphase
+bin/selpsc_patch
+bin/selsbc_patch
+bin/stack_overview
+bin/gamma2doris
+bin/roipac2doris
+
+# 暫存
+*.tmp
+matbgparms.txt
+temp
+
+# IDE
+.vscode/
+.idea/
+*.swp
